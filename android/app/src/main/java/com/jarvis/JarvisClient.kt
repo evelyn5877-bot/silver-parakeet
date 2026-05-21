@@ -5,10 +5,12 @@ import okhttp3.*
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class JarvisClient(private val serverUrl: String, private val activity: MainActivity) {
+class JarvisClient(private var serverUrl: String, private val activity: MainActivity) {
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private var webSocket: WebSocket? = null
@@ -16,6 +18,12 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
     private val deviceId: String = Settings.Secure.getString(activity.contentResolver, Settings.Secure.ANDROID_ID)
 
     init {
+        connect()
+    }
+
+    fun reconnect(newUrl: String) {
+        serverUrl = newUrl
+        webSocket?.close(1000, "URL Changed")
         connect()
     }
 
@@ -27,24 +35,31 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                val data = JSONObject(text)
-                when (data.optString("type")) {
-                    "full" -> activity.onJarvisResponse(data)
-                    "start" -> {
-                        currentAiText = StringBuilder()
-                        activity.onStreamingStart()
+                try {
+                    val data = JSONObject(text)
+                    when (data.optString("type")) {
+                        "full" -> activity.onJarvisResponse(data)
+                        "start" -> {
+                            currentAiText = StringBuilder()
+                            activity.onStreamingStart()
+                        }
+                        "chunk" -> {
+                            val chunk = data.optString("text")
+                            currentAiText.append(chunk)
+                            activity.onStreamingChunk(chunk)
+                        }
+                        "end" -> {
+                            val finalResponse = JSONObject()
+                            finalResponse.put("text", currentAiText.toString())
+                            finalResponse.put("type", "full")
+                            activity.onJarvisResponse(finalResponse)
+                        }
+                        "error" -> {
+                            activity.onStatusUpdate("Eroare Server")
+                        }
                     }
-                    "chunk" -> {
-                        val chunk = data.optString("text")
-                        currentAiText.append(chunk)
-                        activity.onStreamingChunk(chunk)
-                    }
-                    "end" -> {
-                        val finalResponse = JSONObject()
-                        finalResponse.put("text", currentAiText.toString())
-                        finalResponse.put("type", "full")
-                        activity.onJarvisResponse(finalResponse)
-                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
 

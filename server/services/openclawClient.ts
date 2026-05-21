@@ -12,16 +12,21 @@ export class OpenClawClient {
         if (!config.OPENCLAW_ENABLED) return null;
 
         try {
-            // NiClaw/OpenClaw standard endpoint for chat
-            const response = await axios.post(`${this.baseUrl}/api/chat/send`, {
+            // OpenClaw Gateway uses a JSON-RPC like approach or a specific route
+            // Based on niclaw_repo, the internal RPC call is 'chat.send'
+            // We use the REST proxy if available or direct gateway port
+            const response = await axios.post(`${this.baseUrl}/api/chat/send-with-media`, {
+                sessionKey: `agent:jarvis:user:${userId}`,
                 message: text,
-                userId: userId
+                deliver: true,
+                idempotencyKey: Date.now().toString()
             }, {
-                timeout: 10000
+                timeout: 30000 // AI can take time
             });
 
             if (response.data && response.data.success) {
-                return response.data.message || response.data.text;
+                // Return response from OpenClaw
+                return response.data.result?.content || response.data.result?.message || null;
             }
             return null;
         } catch (error) {

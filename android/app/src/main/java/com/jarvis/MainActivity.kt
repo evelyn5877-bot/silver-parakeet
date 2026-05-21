@@ -14,6 +14,7 @@ import android.speech.tts.TextToSpeech
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -39,7 +40,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // UI Binding
         statusText = findViewById(R.id.statusText)
         textInput = findViewById(R.id.textInput)
         val sendButton: ImageButton = findViewById(R.id.sendButton)
@@ -47,12 +47,11 @@ class MainActivity : AppCompatActivity() {
         val recyclerView: RecyclerView = findViewById(R.id.chatRecyclerView)
         val title: TextView = findViewById(R.id.title)
 
-        // Setup RecyclerView
         adapter = MessageAdapter(mutableListOf())
         recyclerView.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         recyclerView.adapter = adapter
 
-        // Init Client
+        // Init Client from SharedPrefs
         val prefs = getSharedPreferences("JarvisPrefs", Context.MODE_PRIVATE)
         val serverUrl = prefs.getString("server_url", "ws://100.64.0.1:3000/jarvis/stream")!!
         jarvisClient = JarvisClient(serverUrl, this)
@@ -69,8 +68,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         micButton.setOnClickListener { checkPermissionAndListen() }
-
         title.setOnClickListener { showSettingsDialog() }
+        title.setOnLongClickListener {
+            Toast.makeText(this, "Server: $serverUrl", Toast.LENGTH_SHORT).show()
+            true
+        }
     }
 
     private fun sendMessage(text: String) {
@@ -83,15 +85,6 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_REQUEST_CODE)
         } else {
             startListening()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == RECORD_AUDIO_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startListening()
-        } else {
-            onStatusUpdate("Permisiune refuzată")
         }
     }
 
@@ -126,19 +119,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsDialog() {
-        val input = EditText(this)
+        val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
+        val urlInput = dialogView.findViewById<EditText>(R.id.urlInput)
         val prefs = getSharedPreferences("JarvisPrefs", Context.MODE_PRIVATE)
-        input.setText(prefs.getString("server_url", "ws://100.64.0.1:3000/jarvis/stream"))
+        urlInput.setText(prefs.getString("server_url", "ws://100.64.0.1:3000/jarvis/stream"))
 
         AlertDialog.Builder(this)
-            .setTitle("Setări Server")
-            .setMessage("Introdu URL-ul WebSocket (ex: ws://IP:PORT/jarvis/stream)")
-            .setView(input)
+            .setTitle("Configurare Jarvis")
+            .setView(dialogView)
             .setPositiveButton("Salvează") { _, _ ->
-                val newUrl = input.text.toString()
+                val newUrl = urlInput.text.toString()
                 prefs.edit().putString("server_url", newUrl).apply()
-                // Restart client with new URL
-                jarvisClient = JarvisClient(newUrl, this)
+                jarvisClient.reconnect(newUrl)
                 onStatusUpdate("Reconectare...")
             }
             .setNegativeButton("Anulează", null)
@@ -172,7 +164,11 @@ class MainActivity : AppCompatActivity() {
     fun onStatusUpdate(msg: String) {
         runOnUiThread {
             statusText.text = msg
-            statusText.setTextColor(if (msg == "Conectat" || msg == "Jarvis ascultă...") 0xFF00E5FF.toInt() else 0xFFFF5252.toInt())
+            when(msg) {
+                "Conectat" -> statusText.setTextColor(0xFF00E5FF.toInt())
+                "Deconectat", "Eroare Conexiune" -> statusText.setTextColor(0xFFFF5252.toInt())
+                else -> statusText.setTextColor(0xFFFFFFFF.toInt())
+            }
         }
     }
 
