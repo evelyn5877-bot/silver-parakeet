@@ -1,35 +1,36 @@
-# Jarvis AI Assistant
+# Jarvis AI System (Android + Server)
 
-Un asistent virtual inteligent, inspirat de Jarvis din Iron Man, construit în Python.
+Sistem asistent virtual complet format dintr-o aplicație Android (Kotlin) și un server AI centralizat (Node.js/NiClaw).
 
-## Caracteristici:
-- **Interfață Vocală & Text**: Poate asculta comenzi vocale (cu fallback pe text în consolă).
-- **Integrare AI**: Folosește modelul Google Gemini pentru răspunsuri inteligente.
-- **Comenzi de Sistem**:
-    - "ora" - Află ora curentă.
-    - "caută [subiect]" - Deschide o căutare Google pentru subiectul dorit.
-    - "stop/ieși/la revedere" - Închide asistentul.
+## Arhitectură
+- **Android App**: Interfața vocală. Responsabilă pentru Speech-to-Text (STT), afișarea chat-ului și Text-to-Speech (TTS). Trimite comenzile către server prin WebSocket.
+- **NiClaw Server**: Creierul AI. Procesează textul, decide ce skill să folosească (oră, căutare web) sau apelează Google Gemini pentru răspunsuri inteligente.
 
-## Instalare:
+## Componente Server (`/server`)
+- **AI Engine**: Integrare cu Google Gemini Pro.
+- **Orchestrator**: Logica de decizie pentru activarea skill-urilor.
+- **Skills**: Module pentru funcționalități specifice (Time, Web Search).
+- **API**: Endpoints REST (`/jarvis/chat`) și WebSocket (`/jarvis/stream`).
 
-1. **Clonează sau descarcă proiectul.**
-2. **Instalează dependințele necesare:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-   *Notă: Pentru redarea audio pe Linux, s-ar putea să ai nevoie de `espeak`: `sudo apt-get install espeak`.*
+## Componente Android (`/android`)
+- **MainActivity**: Gestionarea interacțiunii vocale și a UI-ului minimal (dark mode).
+- **JarvisClient**: Client WebSocket pentru comunicare în timp real.
+- **IntentHandler**: Executarea acțiunilor de sistem (ex: deschiderea unui URL).
 
-3. **Configurare API (Opțional):**
-   Pentru a activa inteligența artificială, setează cheia API Gemini în variabilele de mediu:
-   ```bash
-   export GEMINI_API_KEY="cheia_ta_aici"
-   ```
-   Dacă nu este setată, asistentul va rula în modul Demo.
+## Instalare și Pornire
 
-## Utilizare:
+### Server
+1. Intră în directorul server: `cd server`
+2. Instalează dependințele: `pnpm install`
+3. Configurează `.env`: Adaugă `GEMINI_API_KEY`.
+4. Pornește serverul: `pnpm start` (va rula pe portul 3000).
 
-Rulează scriptul principal:
-```bash
-python main.py
-```
-Asistentul te va întâmpina și va aștepta comanda ta.
+### Android
+1. Deschide folderul `android/` în Android Studio.
+2. Actualizează `YOUR_SERVER_IP` în `MainActivity.kt` cu IP-ul serverului tău.
+3. Compilează și rulează pe un dispozitiv fizic sau emulator cu suport Google Play (pentru STT).
+
+## Utilizare
+- Apasă butonul de microfon și spune "Cât e ora?" sau pune orice întrebare.
+- Jarvis va răspunde vocal și va afișa textul pe ecran.
+- Pentru căutări: spune "Caută [subiect]".
