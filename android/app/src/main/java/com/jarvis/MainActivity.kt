@@ -3,10 +3,13 @@ package com.jarvis
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -29,7 +32,7 @@ class MainActivity : AppCompatActivity() {
         chatContent = findViewById(R.id.chatContent)
         val micButton: FloatingActionButton = findViewById(R.id.micButton)
 
-        jarvisClient = JarvisClient("ws://YOUR_SERVER_IP:3000", this)
+        jarvisClient = JarvisClient("ws://YOUR_SERVER_IP:3000/jarvis/stream", this)
 
         setupSTT()
         setupTTS()
@@ -42,12 +45,21 @@ class MainActivity : AppCompatActivity() {
     private fun setupSTT() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { statusText.text = "Ascult..." }
+            override fun onReadyForSpeech(params: Bundle?) {
+                statusText.text = "Ascult..."
+                startStatusAnimation()
+            }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() { statusText.text = "Mă gândesc..." }
-            override fun onError(error: Int) { statusText.text = "Eroare voce. Încearcă din nou." }
+            override fun onEndOfSpeech() {
+                statusText.text = "Procesez..."
+                statusText.clearAnimation()
+            }
+            override fun onError(error: Int) {
+                statusText.text = "Eroare voce. Încearcă din nou."
+                statusText.clearAnimation()
+            }
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
@@ -76,6 +88,14 @@ class MainActivity : AppCompatActivity() {
         speechRecognizer.startListening(intent)
     }
 
+    private fun startStatusAnimation() {
+        val anim = AlphaAnimation(0.0f, 1.0f)
+        anim.duration = 500
+        anim.repeatMode = Animation.REVERSE
+        anim.repeatCount = Animation.INFINITE
+        statusText.startAnimation(anim)
+    }
+
     fun onStreamingStart() {
         runOnUiThread {
             statusText.text = "Jarvis scrie..."
@@ -92,6 +112,7 @@ class MainActivity : AppCompatActivity() {
     fun onJarvisResponse(response: JSONObject) {
         runOnUiThread {
             statusText.text = "Gata."
+            statusText.clearAnimation()
             val text = response.optString("text")
             if (response.has("type") && response.getString("type") == "full") {
                 chatContent.append("\nJarvis: $text")
@@ -112,11 +133,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleAction(action: JSONObject) {
-        when (action.getString("type")) {
-            "open_url" -> {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(action.getString("url")))
-                startActivity(intent)
+        try {
+            when (action.getString("type")) {
+                "open_url" -> {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(action.getString("url")))
+                    startActivity(intent)
+                }
+                "open_app" -> {
+                    val packageName = action.getString("package")
+                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                    } else {
+                        chatContent.append("\n[Eroare]: Aplicația $packageName nu este instalată.")
+                    }
+                }
+                "open_settings" -> {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

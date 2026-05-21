@@ -1,36 +1,50 @@
 # Jarvis AI System (Android + Server)
 
-Sistem asistent virtual complet format dintr-o aplicație Android (Kotlin) și un server AI centralizat (Node.js/NiClaw).
+Sistem asistent virtual complet format dintr-o aplicație Android (Kotlin) și un server AI centralizat (Node.js).
 
 ## Arhitectură
-- **Android App**: Interfața vocală. Responsabilă pentru Speech-to-Text (STT), afișarea chat-ului și Text-to-Speech (TTS). Trimite comenzile către server prin WebSocket.
-- **NiClaw Server**: Creierul AI. Procesează textul, decide ce skill să folosească (oră, căutare web) sau apelează Google Gemini pentru răspunsuri inteligente.
+- **Android App**: Interfața vocală. Responsabilă pentru Speech-to-Text (STT), animații de status (listening/thinking), afișarea chat-ului și Text-to-Speech (TTS). Comunică prin WebSocket cu serverul.
+- **Node.js Server**: Creierul AI. Include orchestrator de skill-uri, memorie persistentă (JSON) și integrare cu Google Gemini Pro (cu streaming).
 
 ## Componente Server (`/server`)
-- **AI Engine**: Integrare cu Google Gemini Pro.
-- **Orchestrator**: Logica de decizie pentru activarea skill-urilor.
-- **Skills**: Module pentru funcționalități specifice (Time, Web Search).
-- **API**: Endpoints REST (`/jarvis/chat`) și WebSocket (`/jarvis/stream`).
+- **AI Engine**: Integrare cu Google Gemini Pro (suportă streaming și istoric/memorie).
+- **Orchestrator**: Sistem de decizie bazat pe încredere (confidence).
+- **Memory Manager**: Salvare persistentă în `memory_db.json`.
+- **Skills**:
+    - `time_skill`: Returnează ora curentă.
+    - `search_skill`: Deschide URL-uri pentru căutări web.
+    - `system_skill`: Trimite acțiuni Android (Open App, Open Settings).
 
-## Componente Android (`/android`)
-- **MainActivity**: Gestionarea interacțiunii vocale și a UI-ului minimal (dark mode).
-- **JarvisClient**: Client WebSocket pentru comunicare în timp real.
-- **IntentHandler**: Executarea acțiunilor de sistem (ex: deschiderea unui URL).
+## Format Mesaj Standard (JSON)
+```json
+{
+  "text": "Răspunsul asistentului",
+  "speech": true,
+  "actions": [
+    { "type": "open_app", "package": "com.whatsapp" },
+    { "type": "open_url", "url": "https://google.com" }
+  ],
+  "skill": "system_skill",
+  "confidence": 1.0
+}
+```
 
 ## Instalare și Pornire
 
 ### Server
-1. Intră în directorul server: `cd server`
-2. Instalează dependințele: `pnpm install`
-3. Configurează `.env`: Adaugă `GEMINI_API_KEY`.
-4. Pornește serverul: `pnpm start` (va rula pe portul 3000).
+1. `cd server`
+2. `pnpm install`
+3. Creează `.env` cu `GEMINI_API_KEY`.
+4. `pnpm start` (Port 3000).
 
 ### Android
 1. Deschide folderul `android/` în Android Studio.
-2. Actualizează `YOUR_SERVER_IP` în `MainActivity.kt` cu IP-ul serverului tău.
-3. Compilează și rulează pe un dispozitiv fizic sau emulator cu suport Google Play (pentru STT).
+2. Setează `YOUR_SERVER_IP` în `MainActivity.kt`.
+3. Rulează aplicația pe un dispozitiv cu microfon și servicii Google.
 
-## Utilizare
-- Apasă butonul de microfon și spune "Cât e ora?" sau pune orice întrebare.
-- Jarvis va răspunde vocal și va afișa textul pe ecran.
-- Pentru căutări: spune "Caută [subiect]".
+## Comenzi Suportate
+- "Cât este ora?"
+- "Caută [subiect]"
+- "Deschide WhatsApp"
+- "Deschide setările"
+- Orice întrebare generală (procesată de Gemini).
