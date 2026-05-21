@@ -1,5 +1,6 @@
 package com.jarvis
 
+import android.provider.Settings
 import okhttp3.*
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -12,6 +13,7 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
 
     private var webSocket: WebSocket? = null
     private var currentAiText = StringBuilder()
+    private val deviceId: String = Settings.Secure.getString(activity.contentResolver, Settings.Secure.ANDROID_ID)
 
     init {
         connect()
@@ -20,6 +22,10 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
     private fun connect() {
         val request = Request.Builder().url(serverUrl).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                activity.onStatusUpdate("Conectat")
+            }
+
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val data = JSONObject(text)
                 when (data.optString("type")) {
@@ -36,15 +42,18 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
                     "end" -> {
                         val finalResponse = JSONObject()
                         finalResponse.put("text", currentAiText.toString())
+                        finalResponse.put("type", "full")
                         activity.onJarvisResponse(finalResponse)
                     }
                 }
             }
 
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                activity.onStatusUpdate("Deconectat")
+            }
+
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                activity.runOnUiThread {
-                    activity.onStatusUpdate("Conexiune eșuată. Reîncearcă.")
-                }
+                activity.onStatusUpdate("Eroare Conexiune")
             }
         })
     }
@@ -52,7 +61,7 @@ class JarvisClient(private val serverUrl: String, private val activity: MainActi
     fun sendMessage(text: String) {
         val message = JSONObject()
         message.put("text", text)
-        message.put("user_id", "android_device_01")
+        message.put("user_id", deviceId)
         webSocket?.send(message.toString())
     }
 }

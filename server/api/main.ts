@@ -4,6 +4,8 @@ import http from "http";
 import cors from "cors";
 import { processCommand } from "../core/orchestrator";
 import { streamAI } from "../core/ai_engine";
+import { config } from "../config/env";
+import { openClawClient } from "../services/openclawClient";
 
 const app = express();
 const server = http.createServer(app);
@@ -13,55 +15,75 @@ app.use(cors());
 app.use(express.json());
 
 /**
- * Endpoint standard Jarvis Chat
+ * Health check endpoint
+ */
+app.get("/health", async (req, res) => {
+    const ocStatus = config.OPENCLAW_ENABLED ? await openClawClient.checkHealth() : "disabled";
+    res.json({
+        status: "alive",
+        jarvis_brain: "ready",
+        openclaw_integration: ocStatus,
+        version: "2.0.0"
+    });
+});
+
+/**
+ * Jarvis Chat REST
  */
 app.post("/jarvis/chat", async (req, res) => {
-    const { text, user_id, context } = req.body;
+    const { text, user_id } = req.body;
+    if (!text || !user_id) {
+        return res.status(400).json({ error: "Missing text or user_id" });
+    }
     const response = await processCommand(text, user_id);
     res.json(response);
 });
 
 /**
- * Execuție skill specific
- */
-app.post("/jarvis/skill/execute", async (req, res) => {
-    const { skill, params, user_id } = req.body;
-    // Momentan redirectăm către orchestrator cu un format special sau procesăm direct
-    res.json({ success: true, message: `Skill ${skill} executat.` });
-});
-
-/**
- * WebSocket pentru Real-time Streaming
+ * WebSocket for Real-time Streaming
  */
 wss.on("connection", (ws) => {
-    console.log("Client connected to Jarvis Streaming WS");
+    console.log("[WS] Client connected");
 
     ws.on("message", async (message) => {
         try {
             const data = JSON.parse(message.toString());
-            const input = data.text.toLowerCase();
+            const { text, user_id } = data;
 
-            // Verificăm dacă este comandă de sistem rapidă
+            if (!text || !user_id) {
+                ws.send(JSON.stringify({ type: "error", message: "Missing data" }));
+                return;
+            }
+
+            const input = text.toLowerCase();
+
+            // Intercept rapid commands
             if (input.includes("ora") || input.includes("caută")) {
-                const response = await processCommand(data.text, data.user_id);
+                const response = await processCommand(text, user_id);
                 ws.send(JSON.stringify({ type: "full", ...response }));
                 return;
             }
 
-            // Streaming AI
-            ws.send(JSON.stringify({ type: "start", text: "" }));
-            for await (const chunk of streamAI(data.text, data.user_id)) {
+            // AI Streaming
+            ws.send(JSON.stringify({ type: "start" }));
+            for await (const chunk of streamAI(text, user_id)) {
                 ws.send(JSON.stringify({ type: "chunk", text: chunk }));
             }
             ws.send(JSON.stringify({ type: "end" }));
 
         } catch(e) {
-            console.error("WS Message Error:", e);
+            console.error("[WS Error]:", (e as Error).message);
+            ws.send(JSON.stringify({ type: "error", message: "Invalid JSON format" }));
         }
     });
+
+    ws.on("close", () => console.log("[WS] Client disconnected"));
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 server.listen(PORT, () => {
-    console.log(`Jarvis Server (Brain) running on port ${PORT}`);
+    console.log(`\n🚀 Jarvis Next-Gen Server running on port ${PORT}`);
+    console.log(`   - REST: http://localhost:${PORT}/jarvis/chat`);
+    console.log(`   - WS: ws://localhost:${PORT}/jarvis/stream`);
+    console.log(`   - OpenClaw: ${config.OPENCLAW_ENABLED ? 'ENABLED' : 'DISABLED'}\n`);
 });

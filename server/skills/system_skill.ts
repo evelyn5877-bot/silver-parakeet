@@ -1,5 +1,7 @@
 export function handleSystemAction(text: string) {
-    if (text.includes("whatsapp")) {
+    const input = text.toLowerCase();
+
+    if (input.includes("whatsapp")) {
         return {
             actions: [
                 { type: "open_app", package: "com.whatsapp" },
@@ -10,7 +12,7 @@ export function handleSystemAction(text: string) {
         };
     }
 
-    if (text.includes("setări") || text.includes("settings")) {
+    if (input.includes("setări") || input.includes("settings")) {
         return {
             actions: [
                 { type: "open_settings" },
@@ -18,6 +20,18 @@ export function handleSystemAction(text: string) {
             ],
             skill: "system_skill",
             confidence: 0.9
+        };
+    }
+
+    if (input.includes("sună-l pe") || input.includes("suna-l pe") || input.includes("apelează")) {
+        const name = input.split("pe").pop()?.trim() || "contact";
+        return {
+            actions: [
+                { type: "make_call", recipient: name },
+                { type: "speak", text: `Inițiez apel către ${name}` }
+            ],
+            skill: "system_skill",
+            confidence: 0.95
         };
     }
 
