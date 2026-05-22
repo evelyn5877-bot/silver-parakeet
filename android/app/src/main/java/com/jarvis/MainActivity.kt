@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textInput: EditText
 
     private val RECORD_AUDIO_REQUEST_CODE = 101
+    private var isFlashlightOn = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +53,6 @@ class MainActivity : AppCompatActivity() {
         recyclerView.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         recyclerView.adapter = adapter
 
-        // Init Client from SharedPrefs
         val prefs = getSharedPreferences("JarvisPrefs", Context.MODE_PRIVATE)
         val serverUrl = prefs.getString("server_url", "ws://100.64.0.1:3000/jarvis/stream")!!
         jarvisClient = JarvisClient(serverUrl, this)
@@ -69,10 +70,6 @@ class MainActivity : AppCompatActivity() {
 
         micButton.setOnClickListener { checkPermissionAndListen() }
         title.setOnClickListener { showSettingsDialog() }
-        title.setOnLongClickListener {
-            Toast.makeText(this, "Server: $serverUrl", Toast.LENGTH_SHORT).show()
-            true
-        }
     }
 
     private fun sendMessage(text: String) {
@@ -147,11 +144,23 @@ class MainActivity : AppCompatActivity() {
 
     fun onJarvisResponse(response: JSONObject) {
         runOnUiThread {
+            val type = response.optString("type")
             val text = response.optString("text")
-            if (response.optString("type") == "full") {
-                adapter.addMessage(Message(text, false))
+
+            // Prevenim dublarea mesajelor din stream
+            if (type == "full") {
+                // Dacă mesajul a fost deja creat prin streaming, nu mai adăugăm altul
+                // Doar ne asigurăm că textul final este cel corect
+                if (adapter.itemCount > 0) {
+                    // Logica de update este deja în onStreamingChunk
+                } else {
+                    adapter.addMessage(Message(text, false))
+                }
             }
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
+
+            if (text.isNotEmpty()) {
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
+            }
 
             val actions = response.optJSONArray("actions")
             for (i in 0 until (actions?.length() ?: 0)) {
@@ -181,7 +190,23 @@ class MainActivity : AppCompatActivity() {
                     if (intent != null) startActivity(intent)
                 }
                 "open_settings" -> startActivity(Intent(Settings.ACTION_SETTINGS))
+                "toggle_flashlight" -> toggleFlashlight()
+                "make_call" -> {
+                    val recipient = action.optString("recipient")
+                    Toast.makeText(this, "Apelează către: $recipient", Toast.LENGTH_LONG).show()
+                }
             }
         } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    private fun toggleFlashlight() {
+        try {
+            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val cameraId = cameraManager.cameraIdList[0]
+            isFlashlightOn = !isFlashlightOn
+            cameraManager.setTorchMode(cameraId, isFlashlightOn)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Eroare lanternă", Toast.LENGTH_SHORT).show()
+        }
     }
 }
