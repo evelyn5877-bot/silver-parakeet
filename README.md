@@ -26,13 +26,13 @@ Sistemul este divizat în două entități principale care comunică în timp re
 
 ## 🧠 Serverul (Brain)
 
-Situat în `/server`, acesta este nucleul logic.
+Situat în `/server`, acesta este nucleul logic construit cu **TypeScript**.
 
 ### Componente Cheie:
-*   **`orchestrator.ts`**: "Polițistul de circulație" al comenzilor. Analizează inputul și decide care skill trebuie activat.
-*   **`ai_engine.ts`**: Integrează Google Gemini Pro. Folosește un prompt special (**Hermes-style**) pentru a-l face pe Jarvis să fie concis și orientat pe acțiuni.
-*   **`openclawClient.ts`**: Adapterul care permite serverului tău să "vorbească" cu o instanță NiClaw/OpenClaw existentă pe VM-ul tău.
-*   **`memory/manager.ts`**: Salvează istoricul. Chiar dacă repornești serverul, Jarvis își va aminti despre ce ați vorbit.
+*   **`orchestrator.ts`**: "Polițistul de circulație" al comenzilor. Analizează inputul și decide care skill trebuie activat. Folosește scoruri de încredere (confidence) pentru a prioritiza acțiunile de sistem înaintea AI-ului general.
+*   **`ai_engine.ts`**: Integrează Google Gemini Pro. Folosește un prompt special (**Hermes-style**) pentru a-l face pe Jarvis să fie concis, inteligent și orientat pe execuție. Suportă **Streaming**, trimițând textul către telefon pe măsură ce este generat.
+*   **`openclawClient.ts`**: Adapterul care permite serverului tău să "vorbească" cu o instanță NiClaw/OpenClaw existentă pe VM-ul tău prin protocolul JSON-RPC (`chat.send`).
+*   **`memory/manager.ts`**: Salvează istoricul conversației. Jarvis își amintește contextul (ex: numele tău sau preferințele menționate anterior) chiar și după restartarea serverului.
 
 ### Formatul de comunicare (JSON):
 ```json
@@ -51,17 +51,18 @@ Situat în `/server`, acesta este nucleul logic.
 
 ## 📱 Aplicația Android
 
-Situată în `/android`, construită în **Kotlin**.
+Situată în `/android`, construită nativ în **Kotlin**.
 
 ### Caracteristici:
-*   **Streaming UI**: Mesajele de la AI apar literă cu bucată, oferind o experiență fluidă.
-*   **Status Connection**: Indicator vizual colorat (Cyan = Conectat, Roșu = Deconectat).
-*   **Sistem de Acțiuni**:
-    *   `open_app`: Deschide orice aplicație prin Package Name.
-    *   `open_url`: Deschide browserul la o adresă specifică.
-    *   `make_call`: (Extensibil) Pregătit pentru inițierea de apeluri.
-    *   `open_settings`: Deschide setările Android.
-*   **Configurație Dinamică**: Click pe titlul "JARVIS" pentru a schimba IP-ul serverului direct din aplicație.
+*   **Streaming UI**: Mesajele de la AI apar fluid, literă cu literă, folosind un `MessageAdapter` optimizat pentru `RecyclerView`.
+*   **Status Connection**: Indicator vizual colorat (Cyan = Conectat, Roșu = Deconectat/Eroare) care te informează instant despre starea legăturii cu serverul.
+*   **Sistem de Acțiuni (Intents)**:
+    *   `open_app`: Deschide WhatsApp, YouTube sau orice altă aplicație instalată.
+    *   `open_url`: Deschide automat browserul (ex: pentru căutări Google).
+    *   `toggle_flashlight`: Aprinde sau stinge lanterna telefonului.
+    *   `open_settings`: Deschide setările sistemului.
+*   **Configurație Dinamică**: Click pe titlul "JARVIS" pentru a schimba IP-ul serverului (util când schimbi rețeaua sau IP-ul de Tailscale).
+*   **Runtime Permissions**: Gestionează corect permisiunile pentru microfon pe versiunile moderne de Android.
 
 ---
 
@@ -81,27 +82,28 @@ pnpm start
 
 ### 2. Tailscale (Conexiune Securizată)
 *   Instalează Tailscale pe VM și pe Telefon.
-*   Obține IP-ul Tailscale al VM-ului (ex: `100.64.0.1`).
+*   Obține IP-ul Tailscale al VM-ului (ex: `100.64.x.x`).
 
 ### 3. Android
 *   Deschide folderul `android/` în **Android Studio**.
-*   Rulează pe telefon.
+*   Compilați și rulați pe telefon.
 *   În aplicație, apasă pe titlul "JARVIS" și introdu adresa: `ws://IP_TAILSCALE:3000/jarvis/stream`.
 
 ---
 
 ## 🚀 Comenzi pe care le poți încerca:
 *   *"Cât este ora?"*
-*   *"Caută pe google cele mai bune restaurante din București."*
+*   *"Caută pe google rețete de paste."*
 *   *"Deschide WhatsApp"*
+*   *"Aprinde lanterna"*
 *   *"Cine ești tu?"* (Vei vedea personalitatea Jarvis activată de Gemini).
-*   *"Deschide setările"*
+*   *"Apelează-l pe Andrei"*
 
 ---
 
 ## 🛡️ Securitate și DevOps
-*   **Fără Secrete**: Toate cheile API sunt în `.env` (nu se urcă pe GitHub).
-*   **Systemd**: Am inclus `jarvis-server.service` pentru a menține serverul pornit automat pe VM:
+*   **Fără Secrete**: Toate cheile API sunt în `.env`.
+*   **Systemd**: Am inclus `jarvis-server.service` pentru ca asistentul tău să fie mereu online pe VM:
     ```bash
     sudo cp server/jarvis-server.service /etc/systemd/system/
     sudo systemctl enable jarvis-server
@@ -109,4 +111,4 @@ pnpm start
     ```
 
 ---
-*Proiect dezvoltat ca o extensie mobilă pentru ecosistemul NiClaw/OpenClaw.*
+*Proiect dezvoltat ca o extensie mobilă avansată pentru ecosistemul NiClaw/OpenClaw.*
